@@ -39,18 +39,7 @@
   </script>
 </head>
 <body class="bg-ivory text-navy-900 min-h-screen flex flex-col selection:bg-navy-200 selection:text-navy-900">
-<script>
-  // 一度認証したら、同じブラウザでは次回から入力を省略する仕組み
-  if (!localStorage.getItem('kakeibo_unlocked')) {
-    const pass = prompt('パスワードを入力してください');
-    if (pass === '1234') { // ← '1234' を好きな合言葉に変えてください
-      localStorage.setItem('kakeibo_unlocked', 'true');
-    } else {
-      document.body.innerHTML = '<p style="padding:20px;">アクセス権限がありません</p>';
-      throw new Error('Unauthorized');
-    }
-  }
-</script>
+
   <!-- トースト通知（alert代替メッセージボックス） -->
   <div id="toast-container" class="fixed bottom-24 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
 
@@ -82,12 +71,12 @@
       </div>
 
       <!-- データ管理（エクスポート/インポート） -->
+      <!-- 右上アクション：JSON保存＆Gemini分析用プロンプトのエクスポート -->
       <div class="flex items-center gap-1.5 order-2 sm:order-3">
-        <button onclick="exportData()" title="JSONバックアップ保存" class="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-navy-700 bg-navy-50 hover:bg-navy-100 rounded-xl transition-colors">
+        <button onclick="exportJsonBackup()" title="JSONバックアップ保存" class="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-navy-700 bg-navy-50 hover:bg-navy-100 border border-navy-200/70 rounded-xl transition-colors">
           <i data-lucide="download" class="w-3.5 h-3.5"></i>
           <span>保存</span>
-      <!-- 右上アクション：Gemini分析用プロンプトのエクスポート -->
-      <div class="flex items-center gap-1.5 order-2 sm:order-3">
+        </button>
         <button onclick="openExportPromptModal()" title="Gemini分析用プロンプトを出力" class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-navy-800 hover:bg-navy-700 rounded-xl shadow-2xs transition-colors">
           <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
           <span>エクスポート</span>
@@ -318,7 +307,7 @@
 
         <div>
           <label for="cat-name" class="block text-xs font-semibold text-navy-700 mb-1">カテゴリー名 <span class="text-rose-500">*</span></label>
-          <input type="text" id="cat-name" required maxlength="15" placeholder="例：食費、推し活、交際費"
+          <input type="text" id="cat-name" oninput="updateCategoryColorPreview()" required maxlength="15" placeholder="例：食費、推し活、交際費"
             class="w-full px-3.5 py-2.5 bg-white border border-navy-200 rounded-xl text-sm font-medium text-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-700" />
         </div>
 
@@ -331,12 +320,46 @@
           </div>
         </div>
 
-        <div>
-          <label class="block text-xs font-semibold text-navy-700 mb-1.5">テーマカラー</label>
+        <div class="space-y-2.5">
+          <label class="block text-xs font-semibold text-navy-700">テーマカラー</label>
+          
+          <!-- プリセットカラー選択肢 -->
           <div id="cat-color-picker" class="flex flex-wrap gap-2.5">
             <!-- JSでカラー選択肢を生成 -->
           </div>
-          <input type="hidden" id="cat-color" value="#334E68" />
+
+          <!-- カスタムカラー選択（カラーピッカー ＋ HEXコード入力） -->
+          <div class="bg-ivory/80 p-3 rounded-xl border border-navy-100 space-y-2.5">
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-[11px] font-semibold text-navy-600">カスタムカラー（カラーコード指定）</span>
+              <div class="flex items-center gap-2">
+                <label for="cat-color-native" class="sr-only">カラーピッカー</label>
+                <input type="color" id="cat-color-native" value="#243B53" oninput="handleNativeColorInput(this.value)"
+                  class="w-8 h-8 rounded-lg border border-navy-200 bg-white cursor-pointer p-0.5 shrink-0" />
+                <div class="relative">
+                  <input type="text" id="cat-color-hex" value="#243B53" maxlength="7" placeholder="#243B53"
+                    oninput="handleHexTextInput(this.value)" onblur="normalizeHexOnBlur()"
+                    class="w-24 px-2.5 py-1.5 bg-white border border-navy-200 rounded-lg text-xs font-mono font-bold uppercase text-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-700" />
+                </div>
+              </div>
+            </div>
+
+            <!-- リアルタイム表示プレビュー -->
+            <div class="pt-2 border-t border-navy-100/80 flex items-center justify-between gap-2">
+              <span class="text-[11px] text-navy-500">表示プレビュー:</span>
+              <div class="flex items-center gap-2">
+                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white border border-navy-100 text-xs font-bold text-navy-900 shadow-2xs">
+                  <span id="cat-preview-dot" class="w-2.5 h-2.5 rounded-full shrink-0" style="background-color: #243B53"></span>
+                  <span id="cat-preview-name">カテゴリー名</span>
+                </span>
+                <div class="w-14 h-2 bg-navy-100 rounded-full overflow-hidden">
+                  <div id="cat-preview-bar" class="h-full w-2/3 rounded-full" style="background-color: #243B53"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <input type="hidden" id="cat-color" value="#243B53" />
         </div>
 
         <div class="pt-2 flex gap-2">
@@ -425,6 +448,36 @@
           <i data-lucide="copy" class="w-4 h-4"></i>
           <span>プロンプトをコピー</span>
         </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- モーダル5：JSONバックアップ手動コピー用フォールバック -->
+  <!-- ========================================== -->
+  <div id="json-backup-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-navy-900/50 backdrop-blur-xs p-4">
+    <div class="bg-surface w-full max-w-lg rounded-2xl shadow-xl border border-navy-100 overflow-hidden flex flex-col max-h-[85vh]">
+      <div class="px-5 py-4 bg-ivory border-b border-navy-100 flex items-center justify-between">
+        <div>
+          <h3 class="text-base font-bold text-navy-900">JSONバックアップデータ</h3>
+          <p class="text-[11px] text-navy-500">ダウンロードが制限される環境ではこちらからコピーして保存できます</p>
+        </div>
+        <button onclick="closeJsonBackupModal()" class="p-2 text-navy-500 hover:text-navy-900 hover:bg-navy-100 rounded-xl transition-colors" aria-label="閉じる">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+      <div class="p-5 overflow-y-auto space-y-3">
+        <textarea id="json-backup-textarea" rows="10" readonly
+          class="w-full p-3 bg-ivory/70 border border-navy-200 rounded-xl text-xs font-mono text-navy-900 focus:outline-none"></textarea>
+        <div class="flex justify-end gap-2">
+          <button onclick="closeJsonBackupModal()" type="button" class="px-4 py-2 bg-white hover:bg-navy-50 text-navy-700 border border-navy-200 font-semibold text-xs rounded-xl">
+            閉じる
+          </button>
+          <button onclick="copyJsonBackupText()" type="button" class="inline-flex items-center gap-1.5 px-4 py-2 bg-navy-800 hover:bg-navy-700 text-white font-bold text-xs rounded-xl">
+            <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+            <span>JSONをコピー</span>
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -1083,17 +1136,87 @@
      * カテゴリー追加・編集・削除モーダル操作
      * ============================================================================
      */
+    function isValidHexColor(hex) {
+      return /^#[0-9A-Fa-f]{6}$/.test(hex);
+    }
+
+    function normalizeHex(raw) {
+      if (!raw) return null;
+      let cleaned = raw.trim();
+      if (!cleaned.startsWith('#')) {
+        cleaned = '#' + cleaned;
+      }
+      // 3桁HEX (#F0A -> #FF00AA) の展開にも対応
+      if (/^#[0-9A-Fa-f]{3}$/.test(cleaned)) {
+        const r = cleaned[1];
+        const g = cleaned[2];
+        const b = cleaned[3];
+        cleaned = `#${r}${r}${g}${g}${b}${b}`;
+      }
+      return isValidHexColor(cleaned) ? cleaned.toUpperCase() : null;
+    }
+
+    function updateCategoryColorPreview() {
+      const color = document.getElementById('cat-color').value || '#243B53';
+      const nameInput = document.getElementById('cat-name').value.trim();
+      const previewName = nameInput || 'カテゴリー名';
+
+      const dotEl = document.getElementById('cat-preview-dot');
+      const barEl = document.getElementById('cat-preview-bar');
+      const nameEl = document.getElementById('cat-preview-name');
+
+      if (dotEl) dotEl.style.backgroundColor = color;
+      if (barEl) barEl.style.backgroundColor = color;
+      if (nameEl) nameEl.textContent = previewName;
+    }
+
+    function applyCategoryColor(hex, updateHexInput = true) {
+      const normalized = normalizeHex(hex) || COLOR_PALETTE[0].hex;
+      document.getElementById('cat-color').value = normalized;
+      document.getElementById('cat-color-native').value = normalized.toLowerCase();
+      if (updateHexInput) {
+        document.getElementById('cat-color-hex').value = normalized;
+      }
+      renderColorPicker(normalized);
+      updateCategoryColorPreview();
+    }
+
+    function handleNativeColorInput(hexValue) {
+      applyCategoryColor(hexValue, true);
+    }
+
+    function handleHexTextInput(rawText) {
+      const normalized = normalizeHex(rawText);
+      if (normalized) {
+        document.getElementById('cat-color').value = normalized;
+        document.getElementById('cat-color-native').value = normalized.toLowerCase();
+        renderColorPicker(normalized);
+        updateCategoryColorPreview();
+      }
+    }
+
+    function normalizeHexOnBlur() {
+      const hexInput = document.getElementById('cat-color-hex');
+      const normalized = normalizeHex(hexInput.value);
+      if (normalized) {
+        applyCategoryColor(normalized, true);
+      } else {
+        // 不正な値の場合は現在選択中の有効カラーに戻す
+        const currentValid = document.getElementById('cat-color').value || COLOR_PALETTE[0].hex;
+        hexInput.value = currentValid;
+      }
+    }
+
     function renderColorPicker(selectedHex = COLOR_PALETTE[0].hex) {
       const container = document.getElementById('cat-color-picker');
       container.innerHTML = '';
-      document.getElementById('cat-color').value = selectedHex;
 
       COLOR_PALETTE.forEach(c => {
         const isSelected = c.hex.toLowerCase() === selectedHex.toLowerCase();
         const btn = document.createElement('button');
         btn.type = 'button';
-        btn.title = c.name;
-        btn.onclick = () => renderColorPicker(c.hex);
+        btn.title = `${c.name} (${c.hex})`;
+        btn.onclick = () => applyCategoryColor(c.hex, true);
         btn.className = `w-8 h-8 rounded-full transition-transform flex items-center justify-center ${isSelected ? 'scale-110 ring-2 ring-offset-2 ring-navy-800' : 'hover:scale-105'}`;
         btn.style.backgroundColor = c.hex;
         if (isSelected) {
@@ -1113,14 +1236,14 @@
         document.getElementById('edit-category-id').value = cat.id;
         document.getElementById('cat-name').value = cat.name;
         document.getElementById('cat-budget').value = cat.budget;
-        renderColorPicker(cat.color);
+        applyCategoryColor(cat.color, true);
       } else {
         document.getElementById('category-modal-title').textContent = '新しいカテゴリーを追加';
         document.getElementById('edit-category-id').value = '';
         document.getElementById('cat-name').value = '';
         document.getElementById('cat-budget').value = '';
         const randomColor = COLOR_PALETTE[appState.categories.length % COLOR_PALETTE.length].hex;
-        renderColorPicker(randomColor);
+        applyCategoryColor(randomColor, true);
       }
 
       modal.classList.remove('hidden');
@@ -1138,7 +1261,8 @@
       const editId = document.getElementById('edit-category-id').value;
       const name = document.getElementById('cat-name').value.trim();
       const budget = Number(document.getElementById('cat-budget').value);
-      const color = document.getElementById('cat-color').value;
+      const rawHex = document.getElementById('cat-color-hex').value;
+      const color = normalizeHex(rawHex) || document.getElementById('cat-color').value || COLOR_PALETTE[0].hex;
 
       if (!name) {
         showToast('カテゴリー名を入力してください', 'error');
@@ -1184,30 +1308,60 @@
 
     /**
      * ============================================================================
-     * カスタム確認ダイアログ
+     * JSONバックアップ保存（互換性対応＆フォールバックコピー）
      * ============================================================================
      */
-    function openConfirmModal(title, message, onConfirm) {
-      document.getElementById('confirm-title').textContent = title;
-      document.getElementById('confirm-message').textContent = message;
-      confirmCallback = onConfirm;
+    function exportJsonBackup() {
+      const jsonStr = JSON.stringify(appState, null, 2);
+      const now = new Date();
+      const dateStamp = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
+      const filename = `kakeibo_backup_${dateStamp}.json`;
 
-      const okBtn = document.getElementById('confirm-ok-btn');
-      okBtn.onclick = () => {
-        if (confirmCallback) confirmCallback();
-        closeConfirmModal();
-      };
-
-      const modal = document.getElementById('confirm-modal');
-      modal.classList.remove('hidden');
-      modal.classList.add('flex');
+      try {
+        const blob = new Blob([jsonStr], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        a.style.display = 'none';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        showToast(`バックアップ (${filename}) を出力しました`);
+      } catch (e) {
+        openJsonBackupModal(jsonStr);
+      }
     }
 
-    function closeConfirmModal() {
-      const modal = document.getElementById('confirm-modal');
+    function openJsonBackupModal(jsonStr) {
+      document.getElementById('json-backup-textarea').value = jsonStr;
+      const modal = document.getElementById('json-backup-modal');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+      lucide.createIcons();
+    }
+
+    function closeJsonBackupModal() {
+      const modal = document.getElementById('json-backup-modal');
       modal.classList.add('hidden');
       modal.classList.remove('flex');
-      confirmCallback = null;
+    }
+
+    function copyJsonBackupText() {
+      const textarea = document.getElementById('json-backup-textarea');
+      if (!textarea) return;
+      textarea.select();
+      textarea.setSelectionRange(0, textarea.value.length);
+      try {
+        if (document.execCommand('copy')) {
+          showToast('JSONデータをクリップボードにコピーしました');
+        } else {
+          showToast('コピーに失敗しました', 'error');
+        }
+      } catch (err) {
+        showToast('コピーに失敗しました', 'error');
+      }
     }
 
     /**
