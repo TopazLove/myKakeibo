@@ -39,7 +39,18 @@
   </script>
 </head>
 <body class="bg-ivory text-navy-900 min-h-screen flex flex-col selection:bg-navy-200 selection:text-navy-900">
-
+<script>
+  // 一度認証したら、同じブラウザでは次回から入力を省略する仕組み
+  if (!localStorage.getItem('kakeibo_unlocked')) {
+    const pass = prompt('パスワードを入力してください');
+    if (pass === '1234') { // ← '1234' を好きな合言葉に変えてください
+      localStorage.setItem('kakeibo_unlocked', 'true');
+    } else {
+      document.body.innerHTML = '<p style="padding:20px;">アクセス権限がありません</p>';
+      throw new Error('Unauthorized');
+    }
+  }
+</script>
   <!-- トースト通知（alert代替メッセージボックス） -->
   <div id="toast-container" class="fixed bottom-24 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
 
