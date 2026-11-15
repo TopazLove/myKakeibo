@@ -731,13 +731,24 @@
       const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
       const todayStr = formatDateStr(todayObj.getFullYear(), todayObj.getMonth(), todayObj.getDate());
 
-      // 月内の日付別集計マップを作成
+      // カテゴリーIDからカテゴリー情報を高速参照するマップと表示順序マップ
+      const categoryMap = new Map();
+      const categoryOrderMap = new Map();
+      appState.categories.forEach((cat, index) => {
+        categoryMap.set(cat.id, cat);
+        categoryOrderMap.set(cat.id, index);
+      });
+
+      // 月内の日付別ユニークカテゴリーIDセットと支出件数マップを作成
       const monthPrefix = getMonthPrefix(currentYear, currentMonth);
-      const dailyTotals = {};
+      const dailyCategorySets = {};
       const dailyCounts = {};
       appState.expenses.forEach(exp => {
         if (exp.date.startsWith(monthPrefix)) {
-          dailyTotals[exp.date] = (dailyTotals[exp.date] || 0) + Number(exp.amount);
+          if (!dailyCategorySets[exp.date]) {
+            dailyCategorySets[exp.date] = new Set();
+          }
+          dailyCategorySets[exp.date].add(exp.categoryId);
           dailyCounts[exp.date] = (dailyCounts[exp.date] || 0) + 1;
         }
       });
@@ -754,12 +765,52 @@
         const dateStr = formatDateStr(currentYear, currentMonth, day);
         const dayOfWeek = (firstDayOfWeek + day - 1) % 7;
         const isToday = dateStr === todayStr;
-        const spent = dailyTotals[dateStr] || 0;
         const count = dailyCounts[dateStr] || 0;
+
+        // その日に使われたユニークなカテゴリーを設定順に並べる
+        const usedCatIds = dailyCategorySets[dateStr] ? Array.from(dailyCategorySets[dateStr]) : [];
+        usedCatIds.sort((a, b) => {
+          const orderA = categoryOrderMap.has(a) ? categoryOrderMap.get(a) : 9999;
+          const orderB = categoryOrderMap.has(b) ? categoryOrderMap.get(b) : 9999;
+          return orderA - orderB;
+        });
+
+        const uniqueCategories = usedCatIds.map(catId => {
+          return categoryMap.get(catId) || { id: catId, name: '未分類', color: '#94A3B8' };
+        });
 
         let dayColorClass = 'text-navy-800';
         if (dayOfWeek === 0) dayColorClass = 'text-rose-600';
         if (dayOfWeek === 6) dayColorClass = 'text-sky-600';
+
+        // カテゴリーカラーアイコン（最大4個まで表示し、5個以上は +N バッジ表示）
+        const MAX_VISIBLE_DOTS = 4;
+        const visibleCats = uniqueCategories.slice(0, MAX_VISIBLE_DOTS);
+        const overflowCount = Math.max(0, uniqueCategories.length - MAX_VISIBLE_DOTS);
+
+        let categoryDotsHtml = '';
+        if (uniqueCategories.length > 0) {
+          const dots = visibleCats.map(cat => `
+            <span
+              title="${escapeHtml(cat.name)}"
+              class="w-3 h-3 sm:w-3.5 sm:h-3.5 rounded-full border border-navy-900/20 shadow-2xs shrink-0 transition-transform group-hover:scale-110"
+              style="background-color: ${cat.color};"
+            ></span>
+          `).join('');
+
+          const overflowBadge = overflowCount > 0
+            ? `<span class="text-[9px] sm:text-[10px] font-bold text-navy-600 bg-navy-100/90 px-1 rounded-full leading-tight">+${overflowCount}</span>`
+            : '';
+
+          categoryDotsHtml = `
+            <div class="flex flex-wrap items-center justify-end gap-1 pt-0.5">
+              ${dots}
+              ${overflowBadge}
+            </div>
+          `;
+        } else {
+          categoryDotsHtml = `<div class="text-[10px] text-transparent group-hover:text-navy-400 text-right transition-colors">+ 入力</div>`;
+        }
 
         const cell = document.createElement('button');
         cell.type = 'button';
@@ -778,12 +829,7 @@
             ${count > 0 ? `<span class="hidden sm:inline-block text-[10px] font-medium text-navy-500 bg-ivory px-1.5 py-0.5 rounded-md">${count}件</span>` : ''}
           </div>
           <div class="w-full mt-1">
-            ${spent > 0
-              ? `<div class="text-[11px] sm:text-xs font-bold text-navy-900 bg-navy-100/80 group-hover:bg-navy-200/80 px-1.5 py-0.5 rounded-md truncate text-right">
-                   ¥${spent.toLocaleString()}
-                 </div>`
-              : `<div class="text-[10px] text-transparent group-hover:text-navy-400 text-right transition-colors">+ 入力</div>`
-            }
+            ${categoryDotsHtml}
           </div>
         `;
         grid.appendChild(cell);
